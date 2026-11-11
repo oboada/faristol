@@ -53,8 +53,68 @@
       delete:function(){return client.from(TABLE).delete().eq('user_id',uid()).eq('id',id).then(function(r){if(r.error)fail(r.error);});},
       get:function(){return client.from(TABLE).select('id,data').eq('user_id',uid()).eq('id',id).maybeSingle().then(function(r){if(r.error)fail(r.error);return{exists:!!r.data,data:function(){return r.data&&r.data.data;}};});}
     };},
-    limit:function(n){return{get:function(){return client.from(TABLE).select('id,data').eq('user_id',uid()).limit(n).then(function(r){if(r.error)fail(r.error);return{docs:(r.data||[]).map(function(x){return{id:x.id,data:function(){return x.data;}};})};});}};}
+    limit:function(n){return{get:function(){
+      if(!fsOn()){FSINFO={mode:'antic',why:'interruptor'};return legacyGet(n);}
+      return fsGet().catch(function(e){FSINFO={mode:'antic',why:String(e&&e.message||e)};return legacyGet(n);});
+    }};}
   };
+
+  /* ---------- lectura (M2) ----------
+     Antiga: totes les files de faristol_docs. Nova: dash/ins/meta es llegeixen igual que sempre (byte a byte);
+     les fitxes (d-*) vénen de fs_items de manera incremental, amb còpia local (IndexedDB).
+     Qualsevol error o discrepància ⇒ lectura antiga. L'escriptura no canvia: el servidor manté fs_items al dia. */
+  var FSINFO={mode:'?'},FSDBP=null;
+  function fsOn(){try{return localStorage.getItem('faristol.fs')!=='0';}catch(e){return true;}}
+  function legacyGet(n){return client.from(TABLE).select('id,data').eq('user_id',uid()).limit(n).then(function(r){if(r.error)fail(r.error);return{docs:(r.data||[]).map(function(x){return{id:x.id,data:function(){return x.data;}};})};});}
+  function idb(){if(FSDBP)return FSDBP;FSDBP=new Promise(function(res){try{var q=indexedDB.open('faristol-fs',1);q.onupgradeneeded=function(){q.result.createObjectStore('k');};q.onsuccess=function(){res(q.result);};q.onerror=function(){res(null);};q.onblocked=function(){res(null);};}catch(e){res(null);}});return FSDBP;}
+  function idbGet(k){return idb().then(function(db){if(!db)return null;return new Promise(function(res){try{var r=db.transaction('k').objectStore('k').get(k);r.onsuccess=function(){res(r.result||null);};r.onerror=function(){res(null);};}catch(e){res(null);}});});}
+  function idbSet(k,v){return idb().then(function(db){if(!db)return;return new Promise(function(res){try{var t=db.transaction('k','readwrite');t.objectStore('k').put(v,k);t.oncomplete=function(){res();};t.onerror=function(){res();};t.onabort=function(){res();};}catch(e){res();}});});}
+  function fsPull(since){
+    var out=[],PG=100;
+    function page(from){
+      var q=client.from('fs_items').select('id,rev,body,updated_at,deleted_at').eq('user_id',uid()).like('id','d-%');
+      if(since)q=q.gt('updated_at',since);
+      return q.order('updated_at',{ascending:true}).order('id',{ascending:true}).range(from,from+PG-1).then(function(r){
+        if(r.error)fail(r.error);var d=r.data||[];out=out.concat(d);return d.length===PG?page(from+PG):out;});
+    }
+    return page(0);
+  }
+  function cnt(table,live){var q=client.from(table).select('id',{count:'exact',head:true}).eq('user_id',uid()).like('id','d-%');if(live)q=q.is('deleted_at',null);
+    return q.then(function(r){if(r.error)fail(r.error);return r.count;});}
+  function fsGet(){
+    var key='u:'+uid(),cache,mode='inc',nrows=0;
+    function apply(rows){nrows+=rows.length;rows.forEach(function(x){
+      var c=cache.items[x.id];if(c&&c.rev>x.rev)return;
+      if(x.deleted_at)delete cache.items[x.id];else cache.items[x.id]={rev:x.rev,body:x.body,updated_at:x.updated_at};
+      if(!cache.cursor||new Date(x.updated_at)>new Date(cache.cursor))cache.cursor=x.updated_at;});}
+    function since(){return cache.cursor?new Date(new Date(cache.cursor).getTime()-120000).toISOString():null;}
+    function check(){return Promise.all([cnt('fs_items',true),cnt(TABLE,false)]).then(function(a){
+      var mine=Object.keys(cache.items).length;
+      if(a[0]!==a[1])throw new Error('paritat servidor '+a[0]+'/'+a[1]);   /* el vigilant no ha dut al dia fs_items */
+      return a[0]===mine;});}
+    return idbGet(key).then(function(c){
+      cache=(c&&c.v===1&&c.items&&typeof c.items==='object')?c:{v:1,cursor:null,items:{}};
+      if(!cache.cursor)mode='full';
+      return fsPull(since());
+    }).then(function(rows){apply(rows);return check();}).then(function(good){
+      if(good)return;
+      mode='refet';cache={v:1,cursor:null,items:{}};
+      return fsPull(null).then(function(rows){apply(rows);return check();}).then(function(g2){if(!g2)throw new Error('còpia local no coincideix');});
+    }).then(function(){return idbSet(key,cache);}).then(function(){
+      return client.from(TABLE).select('id,data').eq('user_id',uid()).in('id',['dash','ins','meta']);
+    }).then(function(r){
+      if(r.error)fail(r.error);
+      var docs=(r.data||[]).map(function(x){return{id:x.id,data:function(){return x.data;}};});
+      Object.keys(cache.items).forEach(function(id){
+        var o=cache.items[id].body;if(!o||typeof o!=='object')return;
+        if(o.payload&&typeof o.payload==='object')o.payload=JSON.stringify(o.payload);
+        docs.push({id:id,data:function(){return o;}});});
+      FSINFO={mode:'nou',lectura:mode,files:nrows,fitxes:Object.keys(cache.items).length};
+      return{docs:docs};
+    });
+  }
+  try{if(location.hash==='#antic'){localStorage.setItem('faristol.fs','0');history.replaceState(null,'',location.pathname+location.search);}
+      else if(location.hash==='#nou'){localStorage.removeItem('faristol.fs');history.replaceState(null,'',location.pathname+location.search);}}catch(e){}
   var DB={collection:function(){return COL;}};
   var USER={id:function(){return Promise.resolve(uid()||null);},canEdit:function(){return Promise.resolve(true);},isOwner:function(){return true;}};
 
@@ -93,7 +153,7 @@
   /* petita targeta de compte: obre l'app amb #sessio */
   function acct(){if(location.hash!=='#sessio'||document.getElementById('fsAcct'))return;
     var b=document.createElement('div');b.id='fsAcct';b.style.cssText='position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:100001;background:#fff;border:1.5px solid #D6D4CD;border-radius:16px;padding:14px 16px;box-shadow:0 14px 34px -12px rgba(28,31,35,.4);font:15px/1.4 -apple-system,system-ui,sans-serif;color:#1C1F23;display:flex;gap:12px;align-items:center';
-    auth().then(function(s){b.innerHTML='<span>'+(s&&s.user?'Sessió: '+String(s.user.email||'').replace(/</g,'&lt;'):'Sense sessió (només local)')+'</span>'+(s?'<button id="fsOut" style="height:40px;padding:0 16px;border:0;border-radius:999px;background:#1C1F23;color:#fff;font:700 14px/1 -apple-system,system-ui,sans-serif;cursor:pointer">Tanca la sessió</button>':'')+'<button id="fsX" style="height:40px;width:40px;border:0;border-radius:50%;background:#ECE9E1;cursor:pointer;font-size:20px" aria-label="Tanca">×</button>';
+    auth().then(function(s){b.innerHTML='<span>'+(s&&s.user?'Sessió: '+String(s.user.email||'').replace(/</g,'&lt;')+'<br><small>Lectura: '+(FSINFO.mode==='nou'?'nova ('+FSINFO.fitxes+' fitxes, '+FSINFO.lectura+')':FSINFO.mode==='antic'?'antiga ('+String(FSINFO.why||'').replace(/</g,'&lt;')+')':'encara no feta')+'</small>':'Sense sessió (només local)')+'</span>'+(s?'<button id="fsOut" style="height:40px;padding:0 16px;border:0;border-radius:999px;background:#1C1F23;color:#fff;font:700 14px/1 -apple-system,system-ui,sans-serif;cursor:pointer">Tanca la sessió</button>':'')+'<button id="fsX" style="height:40px;width:40px;border:0;border-radius:50%;background:#ECE9E1;cursor:pointer;font-size:20px" aria-label="Tanca">×</button>';
       document.body.appendChild(b);b.querySelector('#fsX').onclick=function(){b.remove();history.replaceState(null,'',location.pathname+location.search);};
       var ob=b.querySelector('#fsOut');if(ob)ob.onclick=function(){client.auth.signOut().then(function(){try{localStorage.removeItem('faristol.k');}catch(e){}location.hash='';location.reload();});};});}
   window.addEventListener('hashchange',acct);window.addEventListener('load',acct);
