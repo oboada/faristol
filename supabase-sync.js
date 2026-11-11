@@ -49,8 +49,16 @@
   function fail(e){throw e||new Error('supabase');}
   var COL={
     doc:function(id){return{
-      set:function(o){return client.from(TABLE).upsert({user_id:uid(),id:id,data:o,updated_at:new Date().toISOString()},{onConflict:'user_id,id'}).then(function(r){if(r.error)fail(r.error);});},
-      delete:function(){return client.from(TABLE).delete().eq('user_id',uid()).eq('id',id).then(function(r){if(r.error)fail(r.error);});},
+      /* escriptura (M3): una sola crida al servidor que desa a fs_items i manté la còpia antiga, tot o res.
+         Si la funció no existeix (servidor sense M3) o l'interruptor és a «antic», es fa com abans. */
+      set:function(o){
+        function old(){return client.from(TABLE).upsert({user_id:uid(),id:id,data:o,updated_at:new Date().toISOString()},{onConflict:'user_id,id'}).then(function(r){if(r.error)fail(r.error);FSW='antiga';});}
+        if(!fsOn())return old();
+        return client.rpc('fs_put',{p_src:id,p_data:o}).then(function(r){if(r.error){if(noFn(r.error))return old();fail(r.error);}FSW='nova';});},
+      delete:function(){
+        function old(){return client.from(TABLE).delete().eq('user_id',uid()).eq('id',id).then(function(r){if(r.error)fail(r.error);FSW='antiga';});}
+        if(!fsOn())return old();
+        return client.rpc('fs_del',{p_src:id}).then(function(r){if(r.error){if(noFn(r.error))return old();fail(r.error);}FSW='nova';});},
       get:function(){return client.from(TABLE).select('id,data').eq('user_id',uid()).eq('id',id).maybeSingle().then(function(r){if(r.error)fail(r.error);return{exists:!!r.data,data:function(){return r.data&&r.data.data;}};});}
     };},
     limit:function(n){return{get:function(){
@@ -63,7 +71,8 @@
      Antiga: totes les files de faristol_docs. Nova: dash/ins/meta es llegeixen igual que sempre (byte a byte);
      les fitxes (d-*) vénen de fs_items de manera incremental, amb còpia local (IndexedDB).
      Qualsevol error o discrepància ⇒ lectura antiga. L'escriptura no canvia: el servidor manté fs_items al dia. */
-  var FSINFO={mode:'?'},FSDBP=null;
+  var FSINFO={mode:'?'},FSDBP=null,FSW='';
+  function noFn(e){return !!e&&(e.code==='PGRST202'||/could not find the function/i.test(String(e.message||'')));}
   function fsOn(){try{return localStorage.getItem('faristol.fs')!=='0';}catch(e){return true;}}
   function legacyGet(n){return client.from(TABLE).select('id,data').eq('user_id',uid()).limit(n).then(function(r){if(r.error)fail(r.error);return{docs:(r.data||[]).map(function(x){return{id:x.id,data:function(){return x.data;}};})};});}
   function idb(){if(FSDBP)return FSDBP;FSDBP=new Promise(function(res){try{var q=indexedDB.open('faristol-fs',1);q.onupgradeneeded=function(){q.result.createObjectStore('k');};q.onsuccess=function(){res(q.result);};q.onerror=function(){res(null);};q.onblocked=function(){res(null);};}catch(e){res(null);}});return FSDBP;}
@@ -151,7 +160,7 @@
     tok:function(){return auth().then(function(s){if(!s||!client)throw new Error('nosession');return client.auth.getSession().then(function(r){var t=r&&r.data&&r.data.session&&r.data.session.access_token;if(!t)throw new Error('nosession');return t;});});}};
 
   /* petita targeta de compte: obre l'app amb #sessio */
-  function rdTxt(){return 'Lectura: '+(FSINFO.mode==='nou'?'nova ('+FSINFO.fitxes+' fitxes, '+FSINFO.lectura+')':FSINFO.mode==='antic'?'antiga ('+String(FSINFO.why||'')+')':'esperant la primera lectura…');}
+  function rdTxt(){return 'Lectura: '+(FSINFO.mode==='nou'?'nova ('+FSINFO.fitxes+' fitxes, '+FSINFO.lectura+')':FSINFO.mode==='antic'?'antiga ('+String(FSINFO.why||'')+')':'esperant la primera lectura…')+(FSW?' · Escriptura: '+FSW:'');}
   function acct(){if(location.hash!=='#sessio'||document.getElementById('fsAcct'))return;
     var b=document.createElement('div');b.id='fsAcct';b.style.cssText='position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:100001;background:#fff;border:1.5px solid #D6D4CD;border-radius:16px;padding:14px 16px;box-shadow:0 14px 34px -12px rgba(28,31,35,.4);font:15px/1.4 -apple-system,system-ui,sans-serif;color:#1C1F23;display:flex;gap:12px;align-items:center';
     auth().then(function(s){b.innerHTML='<span>'+(s&&s.user?'Sessió: '+String(s.user.email||'').replace(/</g,'&lt;')+'<br><small id="fsRd">'+rdTxt()+'</small>':'Sense sessió (només local)')+'</span>'+(s?'<button id="fsOut" style="height:40px;padding:0 16px;border:0;border-radius:999px;background:#1C1F23;color:#fff;font:700 14px/1 -apple-system,system-ui,sans-serif;cursor:pointer">Tanca la sessió</button>':'')+'<button id="fsX" style="height:40px;width:40px;border:0;border-radius:50%;background:#ECE9E1;cursor:pointer;font-size:20px" aria-label="Tanca">×</button>';
