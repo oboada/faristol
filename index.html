@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ca"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Faristol</title>
+<meta name="theme-color" content="#1C1F23">
+<meta name="application-name" content="Faristol">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Faristol"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://ihazuxgudnqrnxlswhmp.supabase.co" crossorigin><link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg"><link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+:root{color-scheme:light}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#FAFAF8;color:#1C1F23;font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body{min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:max(20px,env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) max(20px,env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px))}
+main{width:min(400px,100%);display:grid;gap:14px}
+.brand{display:flex;align-items:center;gap:14px;margin-bottom:10px}
+.brand img{width:56px;height:56px;border-radius:13px;display:block}
+.brand h1{margin:0;font-size:32px;letter-spacing:-.035em;line-height:1}
+.lead{margin:0 0 6px;color:#62666D}
+label{display:block;font-weight:700;font-size:14px}
+input{display:block;width:100%;margin-top:6px;height:52px;padding:0 14px;border:1.5px solid #D6D4CD;border-radius:14px;font:inherit;font-size:17px;font-weight:500;background:#fff;color:#1C1F23}
+input:focus{outline:2px solid #1C1F23;outline-offset:1px}
+#f,#fr,#fn{display:grid;gap:12px}
+.lk{border:0;background:none;color:#4A4E55;font:600 15px/1 -apple-system,system-ui,sans-serif;text-decoration:underline;cursor:pointer;padding:10px;justify-self:center}
+button.go{width:100%;height:54px;border:0;border-radius:999px;background:#1C1F23;color:#fff;font:700 17px/1 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;cursor:pointer;margin-top:4px}
+button.go:disabled{opacity:.55;cursor:default}
+button:focus-visible{outline:2px solid #1C1F23;outline-offset:3px}
+#msg{min-height:22px;margin:0;font-size:14.5px;color:#B3121F}
+#msg.ok{color:#4A4E55}
+input.bad{border:2px solid #B3121F;background:#FFF6F5}
+#msg:empty{display:none}
+#load{display:grid;justify-items:center;gap:0;text-align:center;padding:8px 0 0;animation:fi .35s ease both}
+#load .lg{width:84px;height:84px;border-radius:20px;display:block;box-shadow:0 10px 30px rgba(28,31,35,.18);animation:bob 2.4s ease-in-out infinite}
+#load h2{margin:20px 0 4px;font-size:26px;letter-spacing:-.03em;line-height:1.1}
+#st{margin:0 0 20px;color:#62666D;font-size:15px;min-height:22px}
+.bar{width:min(240px,70%);height:5px;border-radius:99px;background:#E7E5DF;overflow:hidden}
+.bar i{display:block;height:100%;width:6%;border-radius:99px;background:#1C1F23;transition:width .35s cubic-bezier(.2,.7,.2,1)}
+.bar.ind i{width:38%;animation:sl 1.15s ease-in-out infinite}
+@keyframes sl{0%{transform:translateX(-110%)}100%{transform:translateX(270%)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){#load,#load .lg{animation:none}.bar.ind i{animation:none;width:60%}.bar i{transition:none}}
+body.ld .brand{display:none}
+[hidden]{display:none!important}
+</style></head>
+<body>
+<main>
+  <div class="brand"><img src="icons/icon-192.png" alt="" width="56" height="56"><h1>Faristol</h1></div>
+  <p id="msg" role="status" aria-live="polite"></p>
+  <form id="f" hidden>
+    <p class="lead">Biblioteca privada. Entra per continuar.</p>
+    <label>Correu<input id="e" type="email" autocomplete="username" required autocapitalize="off" spellcheck="false"></label>
+    <label>Contrasenya<input id="p" type="password" autocomplete="current-password" required></label>
+    <button class="go" id="b" type="submit">Entra</button>
+    <button type="button" class="lk" id="forgot">He oblidat la contrasenya</button>
+  </form>
+  <form id="fr" hidden>
+    <p class="lead">Escriu el teu correu per restablir la contrasenya.</p>
+    <label>Correu<input id="re" type="email" autocomplete="username" required autocapitalize="off" spellcheck="false"></label>
+    <button class="go" id="rb" type="submit">Envia l'enllaç</button>
+    <button type="button" class="lk" id="back">Torna a l'entrada</button>
+  </form>
+  <form id="fn" hidden>
+    <p class="lead">Tria una contrasenya nova.</p>
+    <label>Contrasenya nova<input id="np" type="password" autocomplete="new-password" minlength="8" required></label>
+    <button class="go" id="nb" type="submit">Desa i entra</button>
+  </form>
+  <div id="load" hidden role="status" aria-live="polite"><img class="lg" src="icons/icon-192.png" alt="" width="84" height="84"><h2>Faristol</h2><p id="st">Comprovant la sessió…</p><div class="bar ind" id="bar" aria-hidden="true"><i></i></div></div>
+</main>
+<script src="config.js"></script>
+<script>
+(function(){
+  var cfg=window.FARISTOL_CONFIG||{},$=function(i){return document.getElementById(i)};
+  var ok=/^https:\/\/[a-z0-9-]+\.supabase\.co/i.test(cfg.supabaseUrl||'')&&!/X{4,}/.test((cfg.supabaseUrl||'')+(cfg.supabaseKey||''))&&(cfg.supabaseKey||'').length>20;
+  var KEYK='faristol.k',SZK='faristol.sz',client=null;
+  function stage(t,p){var st=$('st');if(st)st.textContent=t;var b=$('bar');if(!b)return;if(p==null){b.className='bar ind';}else{b.className='bar';b.firstChild.style.width=Math.max(6,Math.min(100,p))+'%';}}
+  /* baixa l'app xifrada ja des del primer moment, en paral·lel amb la sessió */
+  var ENCP=null,ENCV=0;
+  function prefetch(){
+    if(ENCP)return ENCP;
+    ENCP=fetch('app.enc',{cache:'no-cache'}).then(function(r){
+      if(!r.ok)throw new Error('enc');
+      var tot=+r.headers.get('content-length')||0;if(!tot){try{tot=+localStorage.getItem(SZK)||0;}catch(e){}}
+      if(!r.body||!r.body.getReader)return r.arrayBuffer().then(function(b){return new Uint8Array(b);});
+      var rd=r.body.getReader(),parts=[],got=0;
+      return (function pump(){return rd.read().then(function(x){
+        if(x.done){var out=new Uint8Array(got),o=0;parts.forEach(function(c){out.set(c,o);o+=c.length;});try{localStorage.setItem(SZK,String(got));}catch(e){}ENCV=100;return out;}
+        parts.push(x.value);got+=x.value.length;if(tot){ENCV=Math.min(96,got/tot*100);if(!$('load').hidden&&!ENCDONE)stage('Descarregant la biblioteca…',ENCV);}
+        return pump();});})();
+    }).catch(function(e){ENCP=null;throw e;});
+    return ENCP;
+  }
+  var ENCDONE=false;
+  prefetch().catch(function(){});
+  function bad(on){$('e').classList.toggle('bad',!!on);$('p').classList.toggle('bad',!!on);}
+  function say(t,good){var m=$('msg');m.textContent=t||'';m.className=good?'ok':'';if(!t||good)bad(false);}
+  function show(w){$('f').hidden=w!=='f';$('fr').hidden=w!=='r';$('fn').hidden=w!=='n';$('load').hidden=w!=='l';if(w!=='l')document.body.classList.remove('ld');}
+  var REC=/[#&]type=recovery/.test(location.hash);
+  function loadSb(){return new Promise(function(res,rej){if(window.supabase&&window.supabase.createClient)return res(window.supabase);
+    var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js';s.onload=function(){res(window.supabase);};s.onerror=function(){rej(new Error('cdn'));};document.head.appendChild(s);});}
+  function b64(s){var b=atob(s),a=new Uint8Array(b.length);for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a;}
+  function open(k64){
+    return prefetch().then(function(u){
+      ENCDONE=true;stage('Desxifrant…',100);
+      var iv=u.slice(0,12),ct=u.slice(12);
+      return crypto.subtle.importKey('raw',b64(k64),'AES-GCM',false,['decrypt']).then(function(key){return crypto.subtle.decrypt({name:'AES-GCM',iv:iv},key,ct);});
+    }).then(function(plain){
+      stage('Obrint la biblioteca…',100);
+      var s=new Blob([plain]).stream().pipeThrough(new DecompressionStream('gzip'));return new Response(s).text();
+    }).then(function(html){document.open();document.write(html);document.close();});
+  }
+  function fetchKey(){
+    return client.from('faristol_secret').select('k').eq('id','app').maybeSingle().then(function(r){
+      if(r.error)throw r.error;if(!r.data||!r.data.k){var e=new Error('nokey');e.nokey=1;throw e;}
+      try{localStorage.setItem(KEYK,r.data.k);}catch(e){}return r.data.k;});
+  }
+  function hasStored(){try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(/^sb-.*-auth-token$/.test(k))return true;}}catch(e){}return false;}
+  function cached(){try{return localStorage.getItem(KEYK);}catch(e){return null;}}
+  function enter(){
+    show('l');say('');document.body.classList.add('ld');stage('Comprovant la sessió…',null);ENCDONE=false;
+    var k=cached(),first;
+    if(k){stage('Descarregant la biblioteca…',ENCV||null);if(navigator.onLine)fetchKey().catch(function(){});first=Promise.resolve(k);} /* clau en memòria: no cal esperar la xarxa */
+    else first=navigator.onLine?fetchKey():Promise.resolve(null);
+    return first.then(function(key){
+      if(!key)throw new Error('offline');
+      return open(key).catch(function(e){ /* clau canviada: torna a demanar-la */
+        try{localStorage.removeItem(KEYK);}catch(x){}
+        if(!navigator.onLine)throw e;return fetchKey().then(open);});
+    }).catch(function(e){
+      document.body.classList.remove('ld');show('f');
+      say(e&&e.nokey?'Falta la clau privada a Supabase. Executa el fitxer de la clau (veure la guia).':
+          !navigator.onLine?'Sense connexió i encara no s\'ha obert mai en aquest dispositiu.':
+          'No s\'ha pogut obrir l\'app. Torna-ho a provar.');
+    });
+  }
+  function start(){
+    if(ok&&!REC&&hasStored()){document.body.classList.add('ld');show('l');}
+    if(!ok){show('f');$('b').disabled=true;say('Falta configurar config.js (URL i clau de Supabase).');return;}
+    loadSb().then(function(sb){
+      client=sb.createClient(cfg.supabaseUrl,cfg.supabaseKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+      return client.auth.getSession();
+    }).then(function(r){
+      if(REC){show('n');say('');$('np').focus();return;}
+      if(r&&r.data&&r.data.session)return enter();
+      if(!navigator.onLine&&cached()&&hasStored())return enter();
+      show('f');$('e').focus();
+    }).catch(function(){show('f');say('No hi ha connexió amb Supabase.');});
+  }
+  $('f').addEventListener('submit',function(e){e.preventDefault();var b=$('b');b.disabled=true;say('Entrant…',true);
+    client.auth.signInWithPassword({email:$('e').value.trim(),password:$('p').value}).then(function(r){
+      if(r.error||!r.data||!r.data.session){b.disabled=false;say('Correu o contrasenya incorrectes. Torna-ho a provar.');bad(true);return;}
+      $('p').value='';enter().then(function(){b.disabled=false;});
+    }).catch(function(){b.disabled=false;say('No hi ha connexió amb Supabase.');});});
+  $('e').addEventListener('input',function(){bad(false);});$('p').addEventListener('input',function(){bad(false);});
+  $('forgot').addEventListener('click',function(){show('r');say('');$('re').value=$('e').value;$('re').focus();});
+  $('back').addEventListener('click',function(){show('f');say('');});
+  $('fr').addEventListener('submit',function(e){e.preventDefault();var b=$('rb');b.disabled=true;say('Enviant…',true);
+    client.auth.resetPasswordForEmail($('re').value.trim(),{redirectTo:location.origin+location.pathname}).then(function(r){
+      b.disabled=false;if(r&&r.error){say(/rate|seconds|limit/i.test(r.error.message||'')?'Espera uns segons abans de tornar-ho a provar.':'No s\'ha pogut enviar el correu. Torna-ho a provar.');return;}
+      say('T\'hem enviat un enllaç a '+$('re').value.trim()+' per restablir la contrasenya.',true);
+    }).catch(function(){b.disabled=false;say('No hi ha connexió amb Supabase.');});});
+  $('fn').addEventListener('submit',function(e){e.preventDefault();var b=$('nb');b.disabled=true;say('Desant…',true);
+    client.auth.updateUser({password:$('np').value}).then(function(r){
+      if(r&&r.error){b.disabled=false;say(/same|different/i.test(r.error.message||'')?'Tria una contrasenya diferent de l\'anterior.':'No s\'ha pogut canviar la contrasenya (mínim 8 caràcters).');return;}
+      REC=false;try{history.replaceState(null,'',location.pathname+location.search);}catch(x){}$('np').value='';enter().then(function(){b.disabled=false;});
+    }).catch(function(){b.disabled=false;say('No hi ha connexió amb Supabase.');});});
+  start();
+})();
+</script>
+</body></html>
