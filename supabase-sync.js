@@ -73,6 +73,23 @@
     return Promise.resolve(null);
   }};
 
+
+  /* crida a una Edge Function amb el token de l'usuari (retrats des de fotos) */
+  window.faristol=window.faristol||{};
+  window.faristol.fn=function(name,body,signal){
+    return auth().then(function(s){
+      if(!s||!client)throw new Error('nosession');
+      return client.auth.getSession().then(function(r){
+        var t=r&&r.data&&r.data.session&&r.data.session.access_token;if(!t)throw new Error('nosession');
+        return fetch(cfg.supabaseUrl.replace(/\/+$/,'')+'/functions/v1/'+name,{method:'POST',headers:{Authorization:'Bearer '+t,apikey:cfg.supabaseKey},body:body,signal:signal});
+      });
+    });
+  };
+
+  /* accés a Storage (imatges): URL, clau pública, token de sessió i id d'usuari */
+  window.faristol.sb={url:(cfg.supabaseUrl||'').replace(/\/+$/,''),key:cfg.supabaseKey,uid:function(){return uid()||null;},
+    tok:function(){return auth().then(function(s){if(!s||!client)throw new Error('nosession');return client.auth.getSession().then(function(r){var t=r&&r.data&&r.data.session&&r.data.session.access_token;if(!t)throw new Error('nosession');return t;});});}};
+
   /* petita targeta de compte: obre l'app amb #sessio */
   function acct(){if(location.hash!=='#sessio'||document.getElementById('fsAcct'))return;
     var b=document.createElement('div');b.id='fsAcct';b.style.cssText='position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:100001;background:#fff;border:1.5px solid #D6D4CD;border-radius:16px;padding:14px 16px;box-shadow:0 14px 34px -12px rgba(28,31,35,.4);font:15px/1.4 -apple-system,system-ui,sans-serif;color:#1C1F23;display:flex;gap:12px;align-items:center';
